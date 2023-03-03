@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot, Context, Greedy#, commands
 from wavelink.tracks import YouTubeTrack
+import asyncio
 
 from typing import Optional, Literal
 from discord import app_commands
@@ -36,12 +37,14 @@ class Music(commands.Cog):
         await wavelink.NodePool.create_node(bot=self.bot, host='lava1.horizxon.studio', port=80,
                                             password="horizxon.studio")
 
+
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, node: wavelink.Node):
         """Event fired when a node has finished connecting."""
         print(f'Node: <{node.identifier}> is ready!')
 
-    @app_commands.command()
+
+    @app_commands.command(name="play", description="this is the working play")
     async def play(self, interaction: discord.Interaction, *, search: str):
         """Play a song with the given search query.
 
@@ -58,17 +61,51 @@ class Music(commands.Cog):
         track = search[0]
 
         await vc.play(track)
-        await interaction.response.send_message(f"Now playing `{track.title}` by `{track.author}`", allowed_mentions=discord.AllowedMentions.none())
+        await interaction.response.send_message(f"Now playing `{track.title}` by `{track.author}`",
+                                                allowed_mentions=discord.AllowedMentions.none())
+
+    @app_commands.command(name="pause", description="to pause the music")
+    async def pause(self, interaction):
+        voice = interaction.guild.voice_client
+        if voice and voice.is_playing():
+            await voice.pause()
+            await interaction.response.send_message('pause...')
+        else:
+            await interaction.response.send_message(ephemeral='the bot is not in a voice chat')
+
+    @app_commands.command(name="leave", description="to leave the voice chat")
+    async def leave(self, interaction):
+        voice = interaction.guild.voice_client
+        if voice and voice.is_playing():
+            await voice.disconnect()
+            await interaction.response.send_message('stop...')
+        else:
+            await interaction.response.send_message(ephemeral='the bot is not in a voice chat')
+
+    @app_commands.command(name="resume", description="to resume the music after pause")
+    async def resume(self, interaction):
+        channel = interaction.user.voice.channel
+        voice = interaction.guild.voice_client
+        if not voice:
+            voice = await channel.connect()
+        else:
+            await voice.move_to(channel)
+
+            # Resume playback if paused
+        if voice.is_paused():
+            await voice.resume()
+            await interaction.response.send_message(ephemeral='Resuming playback.')
+            return
+
+    @app_commands.command(name="clear", description="to clear lines")
+    async def purge(self, interaction, amount: int):
+        amount = amount + 1
+        await interaction.response.defer()
+        await interaction.channel.purge(limit=amount)
+        await interaction.followup.send(ephemeral="Messages have been cleared")
 
 
 
-    # @client.tree.command()
-    # async def resume(ctx):
-    #    voice = get(client.voice_clients, guild=ctx.guild)
-    #
-    #    if not voice.is_playing():
-    #        voice.resume()
-    #        await ctx.send('Bot is resuming')
 
     # @client.tree.command(name="join")
     # async def join(ctx):
@@ -79,10 +116,6 @@ class Music(commands.Cog):
     #        channel = ctx.message.author.voice.channel
     #    await channel.connect()
 
-    # @client.tree.command()
-    # async def clear(ctx, amount=5):
-    #    await ctx.channel.purge(limit=amount)
-    #    await ctx.send("Messages have been cleared")
 
 bot = Bot()
 
